@@ -1,0 +1,1207 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智能批量图片分割工具</title>
+    <style>
+        :root {
+            --primary: #4F46E5;
+            --primary-hover: #4338CA;
+            --danger: #EF4444;
+            --danger-hover: #DC2626;
+            --warning: #D97706;
+            --warning-hover: #B45309;
+            --bg: #F3F4F6;
+            --card-bg: #FFFFFF;
+            --text-main: #1F2937;
+            --text-muted: #6B7280;
+            --border: #E5E7EB;
+            --radius: 12px;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; }
+        body { background-color: var(--bg); color: var(--text-main); padding: 2rem; line-height: 1.5; }
+        .container { max-width: 1400px; margin: 0 auto; }
+        h1 { text-align: center; margin-bottom: 2rem; color: var(--primary); font-size: 2.5rem; }
+
+        .main-layout { display: grid; grid-template-columns: 380px 1fr; gap: 2rem; align-items: start; }
+        .card { background: var(--card-bg); padding: 1.5rem; border-radius: var(--radius); box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
+
+        .upload-area { border: 2px dashed var(--border); border-radius: var(--radius); padding: 2rem 1rem; text-align: center; cursor: pointer; transition: all 0.3s ease; margin-bottom: 1rem; }
+        .upload-area:hover, .upload-area.dragover { border-color: var(--primary); background-color: #EEF2FF; }
+        .upload-area input[type="file"] { display: none; }
+        .upload-icon { font-size: 2rem; margin-bottom: 0.5rem; }
+
+        .thumbnail-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; display: none; }
+        .thumbnail-header span { font-size: 0.9rem; font-weight: 600; }
+        .clear-all-imgs { font-size: 0.85rem !important; color: var(--danger); cursor: pointer; transition: color 0.2s; }
+        .clear-all-imgs:hover { color: var(--danger-hover); text-decoration: underline; }
+
+        .thumbnail-list { display: flex; gap: 0.75rem; overflow-x: auto; padding-bottom: 0.5rem; margin-bottom: 1.5rem; }
+        .thumbnail-wrapper { position: relative; flex-shrink: 0; cursor: pointer; }
+        .thumbnail-item { width: 60px; height: 60px; border-radius: 6px; object-fit: cover; border: 2px solid transparent; opacity: 0.6; transition: all 0.2s; display: block;}
+        .thumbnail-wrapper:hover .thumbnail-item { opacity: 1; }
+        .thumbnail-item.active { border-color: var(--primary); opacity: 1; }
+        .thumbnail-delete { position: absolute; top: -6px; right: -6px; background: var(--danger); color: white; width: 18px; height: 18px; border-radius: 50%; font-size: 12px; line-height: 16px; text-align: center; cursor: pointer; display: none; z-index: 10; font-weight: bold; }
+        .thumbnail-wrapper:hover .thumbnail-delete { display: block; }
+        .thumbnail-delete:hover { background: var(--danger-hover); }
+
+        .settings-group { margin-bottom: 1.5rem; }
+        .settings-group label.group-title { display: block; margin-bottom: 0.5rem; font-weight: 500; }
+        .radio-group { display: flex; flex-direction: column; gap: 0.75rem; margin-bottom: 1rem; }
+        .radio-label { display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.95rem; }
+
+        .input-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 0.5rem; }
+        .input-box input { width: 100%; padding: 0.75rem; border: 1px solid var(--border); border-radius: 8px; outline: none; }
+        .input-box input:focus { border-color: var(--primary); }
+        .input-box input[type="number"] { -moz-appearance: textfield; }
+
+        .checkbox-row { margin-top: 1rem; padding: 0.75rem; background: #f8fafc; border-radius: 8px; border: 1px solid var(--border); }
+
+        .btn { width: 100%; padding: 0.75rem; background-color: var(--primary); color: white; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; transition: background-color 0.3s; display: flex; justify-content: center; align-items: center; gap: 0.5rem;}
+        .btn:hover:not(:disabled) { background-color: var(--primary-hover); }
+        .btn:disabled { background-color: var(--text-muted); cursor: not-allowed; opacity: 0.7; }
+        
+        .btn-danger { background-color: white; color: var(--danger); border: 1px solid var(--danger); }
+        .btn-danger:hover:not(:disabled) { background-color: #FEF2F2; color: var(--danger-hover); }
+
+        .btn-warning { background-color: white; color: var(--warning); border: 1px solid var(--warning); }
+        .btn-warning:hover:not(:disabled) { background-color: #FEF3C7; color: var(--warning-hover); }
+
+        .btn-nav { background-color: white; color: var(--text-main); border: 1px solid var(--border); padding: 0.4rem 0.8rem; font-size: 0.85rem; width: auto; white-space: nowrap;}
+        .btn-nav:hover:not(:disabled) { background-color: #f1f5f9; border-color: var(--text-muted); }
+
+        .local-strategy-bar { display: flex; gap: 1rem; align-items: center; background: #FEF9C3; padding: 0.6rem; border-radius: 8px; border: 1px solid #FDE047; margin-bottom: 0.75rem; flex-wrap: wrap;}
+        .local-strategy-bar select { padding: 0.4rem; border-radius: 6px; border: 1px solid #eab308; outline: none; background: white; font-weight: 500; cursor: pointer; }
+        .local-strategy-bar select:focus { box-shadow: 0 0 0 2px rgba(234, 179, 8, 0.2); }
+        
+        .canvas-toolbar { display: flex; gap: 0.5rem; margin-bottom: 1rem; background: #f8fafc; padding: 0.5rem; border-radius: 8px; border: 1px solid var(--border); flex-wrap: wrap; }
+        .tool-btn { flex: 1; padding: 0.4rem 0.5rem; background: white; border: 1px solid var(--border); border-radius: 6px; cursor: pointer; font-size: 0.85rem; transition: 0.2s; white-space: nowrap; }
+        .tool-btn:hover { background: #f1f5f9; }
+        .tool-btn.active { background: #EEF2FF; border-color: var(--primary); color: var(--primary); font-weight: bold; }
+        .tool-btn-clear { flex: 0.5; color: var(--danger); }
+        .tool-btn-clear:hover { background: #FEF2F2; border-color: var(--danger); }
+        .tool-btn-reset { flex: 0.5; color: var(--warning); }
+        .tool-btn-reset:hover { background: #FEF3C7; border-color: var(--warning); }
+
+        .preview-container { position: relative; width: 100%; background: #e5e5f7; background-size: 20px 20px; background-image: repeating-linear-gradient(0deg, #d1d5db, #d1d5db 1px, transparent 1px, transparent), repeating-linear-gradient(90deg, #d1d5db, #d1d5db 1px, transparent 1px, transparent); border-radius: var(--radius); overflow: hidden; display: flex; justify-content: center; align-items: center; min-height: 400px; }
+        canvas { max-width: 100%; max-height: 700px; object-fit: contain; }
+
+        .hint-text { font-size: 0.85rem; color: var(--primary); margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem; background: #EEF2FF; padding: 0.5rem; border-radius: 6px;}
+
+        .results-section { margin-top: 2rem; display: none; }
+        .results-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 1rem; }
+        .header-actions { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+        .grid-results { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 1rem; }
+        
+        .result-item { position: relative; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: white; display: flex; flex-direction: column; cursor: zoom-in; transition: transform 0.2s; }
+        .result-item:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .result-item img { width: 100%; height: 150px; object-fit: contain; display: block; border-bottom: 1px solid var(--border); background: #f3f4f6; }
+        .result-info { padding: 0.5rem; font-size: 0.8rem; background: #f8fafc; }
+        .result-info p { margin-bottom: 0.25rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .result-info .resolution { font-size: 0.75rem; color: var(--text-muted); display: block; }
+        .single-download { color: var(--primary); text-decoration: none; font-weight: bold; cursor: pointer; float: right; position: relative; z-index: 2; margin-top: -15px;}
+        
+        .result-delete { position: absolute; top: 6px; right: 6px; background: rgba(239, 68, 68, 0.85); color: white; width: 24px; height: 24px; border-radius: 50%; font-size: 16px; display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 10; font-weight: bold; transition: 0.2s; backdrop-filter: blur(2px); }
+        .result-delete:hover { background: var(--danger-hover); transform: scale(1.1); }
+
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.85); backdrop-filter: blur(4px); }
+        .modal-content { display: block; max-width: 90%; max-height: 90%; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); border-radius: 8px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); object-fit: contain; }
+        .modal-close { position: absolute; top: 20px; right: 35px; color: #f1f1f1; font-size: 40px; font-weight: bold; cursor: pointer; transition: 0.3s; z-index: 1001; }
+        .modal-close:hover { color: #bbb; }
+        
+        .modal-nav { position: absolute; top: 50%; transform: translateY(-50%); color: white; font-size: 40px; font-weight: bold; cursor: pointer; padding: 16px; user-select: none; transition: 0.3s; background: rgba(0,0,0,0.3); border-radius: 8px; z-index: 1001; }
+        .modal-nav:hover { background: rgba(0,0,0,0.8); }
+        .modal-prev { left: 20px; }
+        .modal-next { right: 20px; }
+        .modal-counter { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); color: white; font-size: 16px; background: rgba(0,0,0,0.5); padding: 5px 15px; border-radius: 20px; z-index: 1001;}
+
+        @media (max-width: 768px) { .main-layout { grid-template-columns: 1fr; } .header-actions { flex-direction: column; width: 100%; } .header-actions button { width: 100%; } }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>✂️ 智能批量图片分割工具</h1>
+
+    <div class="main-layout">
+        <!-- 左侧全局控制区 -->
+        <div class="card controls">
+            <div class="upload-area" id="uploadArea">
+                <div class="upload-icon">📁</div>
+                <p>点击或拖拽多张图片到此处</p>
+                <input type="file" id="fileInput" accept="image/png, image/jpeg, image/webp" multiple>
+            </div>
+            
+            <div class="thumbnail-header" id="thumbnailHeader">
+                <span>📁 已导入图片</span>
+                <span class="clear-all-imgs" id="clearAllImgsBtn">🗑️ 一键清空</span>
+            </div>
+            <div id="thumbnailList" class="thumbnail-list"></div>
+
+            <div class="settings-group">
+                <label class="group-title">1. 全局分割策略 (默认)</label>
+                <div class="radio-group">
+                    <label class="radio-label" title="自动识别并提取背景色/纯色分割线包围的图片。">
+                        <input type="radio" name="mode" value="auto_color" checked> 🎨 智能纯色/缝隙提取 (适合边框或线条)
+                    </label>
+                    <label class="radio-label" title="识别没有明显分割线的直接拼合处（检测颜色剧烈突变点）">
+                        <input type="radio" name="mode" value="auto_smart"> 🧠 智能无缝拼接检测 (适合直接拼图)
+                    </label>
+                    <label class="radio-label">
+                        <input type="radio" name="mode" value="grid"> 🔢 按固定行列数强行切割
+                    </label>
+                    <div class="input-row" id="gridSettings" style="display: none; margin-left: 1.5rem;">
+                        <div class="input-box"><label>行数</label><input type="number" id="rows" value="3" min="1"></div>
+                        <div class="input-box"><label>列数</label><input type="number" id="cols" value="3" min="1"></div>
+                    </div>
+                    <!-- 已移除 size 固定像素切割模式 -->
+                </div>
+
+                <div class="checkbox-row" id="trimSettingWrapper">
+                    <label class="radio-label" style="margin:0; font-weight: normal; color: #b45309;" title="勾选后，会把每块小图外侧的纯色留白切掉。默认关闭以确保所见即所得。">
+                        <input type="checkbox" id="trimWhiteEdges">
+                        ✂️ 自动裁剪并收缩每张小图四周的纯色留白/边框
+                    </label>
+                    <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 6px; padding-left: 24px;">
+                        💡 提示：程序始终会自动过滤完全空白的废图。开启此项会导致导出的图片尺寸小于您看到的红线框。如需<strong style="color:#1F2937;">严格按红线所见即所得</strong>，请保持关闭。
+                    </div>
+                </div>
+            </div>
+
+            <p id="imageInfo" style="margin-bottom: 1rem; font-size: 0.9rem; color: var(--text-muted);"></p>
+            <button class="btn" id="splitBtn" disabled>开始批量处理提取</button>
+        </div>
+
+        <!-- 右侧微调预览区 -->
+        <div class="card preview-wrapper">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; flex-wrap: wrap; gap: 0.5rem;">
+                <h3 style="margin: 0;">2. 图片红线微调 <span id="previewName" style="font-size:1rem; color:#666;"></span></h3>
+                <div style="display: flex; gap: 0.5rem;">
+                    <button id="prevImgBtn" class="btn btn-nav" disabled>⬅️ 上一张</button>
+                    <button id="nextImgBtn" class="btn btn-nav" disabled>下一张 ➡️</button>
+                </div>
+            </div>
+
+            <!-- 新增：单图独立策略栏 -->
+            <div class="local-strategy-bar">
+                <label style="font-size: 0.9rem; font-weight: bold; color: #854d0e;">当前图片专属策略：</label>
+                <select id="localModeSelect" disabled>
+                    <option value="global">🌍 跟随全局设置</option>
+                    <option value="auto_color">🎨 智能纯色/缝隙提取</option>
+                    <option value="auto_smart">🧠 智能无缝拼接检测</option>
+                    <option value="grid">🔢 固定行列强行切割</option>
+                </select>
+                <div id="localGridSettings" style="display: none; align-items: center; gap: 0.5rem; font-size: 0.85rem; color: #854d0e;">
+                    <span>行: <input type="number" id="localRows" value="3" min="1" style="width: 45px; padding: 0.2rem; border-radius: 4px; border: 1px solid #eab308;"></span>
+                    <span>列: <input type="number" id="localCols" value="3" min="1" style="width: 45px; padding: 0.2rem; border-radius: 4px; border: 1px solid #eab308;"></span>
+                </div>
+            </div>
+            
+            <div class="canvas-toolbar">
+                <button id="toolMove" class="tool-btn active" title="拖拽红线移动位置，或者双击红线将其删除">👆 拖拽修改 / 双击删线</button>
+                <button id="toolAddH" class="tool-btn" title="在点击的位置添加一条水平横线">➕ 加横线</button>
+                <button id="toolAddV" class="tool-btn" title="在点击的位置添加一条垂直竖线">│ 加竖线</button>
+                <button id="toolClear" class="tool-btn tool-btn-clear" title="清空该图片上的所有红线">🗑️ 清空红线</button>
+                <button id="toolReset" class="tool-btn tool-btn-reset" title="撤销手动修改的线条，重新应用该图片的策略进行计算">🔄 重新识别线条</button>
+            </div>
+
+            <div class="hint-text">💡 提示：将不需要的红线直接拖出画面外即可丢弃。导出的结果会自动过滤掉废弃的纯色区域。</div>
+            <div class="preview-container">
+                <canvas id="previewCanvas"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- 结果展示区 -->
+    <div class="card results-section" id="resultsSection">
+        <div class="results-header">
+            <div>
+                <h3 style="display: inline-block;">提取结果 (共 <span id="resultCount">0</span> 张有效小图)</h3>
+                <span style="font-size: 0.85rem; color: var(--text-muted); margin-left: 10px; display: block; margin-top: 5px;">💡 提示：双击小图放大查看，支持鼠标滚轮切换。</span>
+            </div>
+            <div class="header-actions">
+                <button class="btn btn-warning" style="width: auto; padding: 0.5rem 1rem;" id="clearNarrowBtn" title="识别并清除长宽比例失调(>1:5) 或短边<15px 的废弃条状图">🧹 清理狭长废图</button>
+                <button class="btn btn-danger" style="width: auto; padding: 0.5rem 1rem;" id="clearResultsBtn">🗑️ 清空结果</button>
+                <button class="btn" style="width: auto; padding: 0.5rem 1.5rem;" id="downloadAllBtn">📥 批量下载全部</button>
+            </div>
+        </div>
+        <div class="grid-results" id="resultsContainer"></div>
+    </div>
+</div>
+
+<div id="previewModal" class="modal">
+    <span class="modal-close" id="modalClose">&times;</span>
+    <div class="modal-nav modal-prev" id="modalPrev" title="上一张 (左箭头/滚轮向上)">&#10094;</div>
+    <img class="modal-content" id="modalImage">
+    <div class="modal-nav modal-next" id="modalNext" title="下一张 (右箭头/滚轮向下)">&#10095;</div>
+    <div class="modal-counter" id="modalCounter"></div>
+</div>
+
+<script>
+    const uploadArea = document.getElementById('uploadArea');
+    const fileInput = document.getElementById('fileInput');
+    const thumbnailList = document.getElementById('thumbnailList');
+    const thumbnailHeader = document.getElementById('thumbnailHeader');
+    const splitBtn = document.getElementById('splitBtn');
+    const previewCanvas = document.getElementById('previewCanvas');
+    const ctx = previewCanvas.getContext('2d', { willReadFrequently: true });
+    
+    // UI 控制元素
+    const prevImgBtn = document.getElementById('prevImgBtn');
+    const nextImgBtn = document.getElementById('nextImgBtn');
+    const localModeSelect = document.getElementById('localModeSelect');
+    const localGridSettings = document.getElementById('localGridSettings');
+    const localRows = document.getElementById('localRows');
+    const localCols = document.getElementById('localCols');
+
+    let uploadedImages = []; 
+    let currentImgId = null;
+    let splitResults = []; 
+    
+    let isDragging = false;
+    let dragTarget = null; 
+    let currentTool = 'move'; 
+    const HIT_TOLERANCE = 10; 
+    let currentModalIndex = -1;
+
+    function updateThumbnailHeader() {
+        thumbnailHeader.style.display = uploadedImages.length > 0 ? 'flex' : 'none';
+        if (uploadedImages.length === 0) {
+            localModeSelect.disabled = true;
+            prevImgBtn.disabled = true;
+            nextImgBtn.disabled = true;
+        } else {
+            localModeSelect.disabled = false;
+        }
+    }
+
+    // 更新左右切换按钮状态
+    function updateNavButtons() {
+        if (uploadedImages.length <= 1) {
+            prevImgBtn.disabled = true;
+            nextImgBtn.disabled = true;
+            return;
+        }
+        const currentIndex = uploadedImages.findIndex(img => img.id === currentImgId);
+        prevImgBtn.disabled = currentIndex <= 0;
+        nextImgBtn.disabled = currentIndex >= uploadedImages.length - 1;
+    }
+
+    prevImgBtn.addEventListener('click', () => {
+        const currentIndex = uploadedImages.findIndex(img => img.id === currentImgId);
+        if (currentIndex > 0) selectImage(uploadedImages[currentIndex - 1].id);
+    });
+
+    nextImgBtn.addEventListener('click', () => {
+        const currentIndex = uploadedImages.findIndex(img => img.id === currentImgId);
+        if (currentIndex < uploadedImages.length - 1) selectImage(uploadedImages[currentIndex + 1].id);
+    });
+
+    document.getElementById('clearAllImgsBtn').addEventListener('click', () => {
+        if (!confirm('确定要清空所有已导入的图片吗？')) return;
+        uploadedImages.forEach(img => URL.revokeObjectURL(img.img.src)); 
+        uploadedImages = [];
+        currentImgId = null;
+        thumbnailList.innerHTML = '';
+        updateThumbnailHeader();
+        updateNavButtons();
+        
+        ctx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
+        document.getElementById('previewName').textContent = '';
+        document.getElementById('imageInfo').textContent = '';
+        splitBtn.disabled = true;
+    });
+
+    let previousMode = document.querySelector('input[name="mode"]:checked') ? document.querySelector('input[name="mode"]:checked').value : 'auto_color';
+
+    // 全局策略变更
+    document.getElementsByName('mode').forEach(radio => {
+        radio.addEventListener('change', (e) => {
+            const newMode = e.target.value;
+            // 检查是否有图片使用了单图独立策略，或者手动微调了线条
+            const hasCustomized = uploadedImages.some(img => img.isCustomized || img.localMode !== 'global');
+            
+            if (hasCustomized) {
+                if (!confirm('⚠️ 切换全局分割策略将【清空所有手动微调和单图专属策略】，并按新策略重新计算所有图片。\n\n确定要继续切换吗？')) {
+                    document.querySelector(`input[name="mode"][value="${previousMode}"]`).checked = true;
+                    return;
+                }
+            }
+            previousMode = newMode;
+            
+            document.getElementById('gridSettings').style.display = newMode === 'grid' ? 'grid' : 'none';
+            
+            // 强行将所有图片状态重置为跟随全局，并清除红线自定义标记
+            uploadedImages.forEach(item => { 
+                item.isCustomized = false; 
+                item.localMode = 'global';
+            });
+
+            // 同步更新 UI 下拉框
+            if(currentImgId) {
+                localModeSelect.value = 'global';
+                localGridSettings.style.display = 'none';
+            }
+            updatePreview();
+        });
+    });
+
+    ['rows', 'cols'].forEach(id => {
+        document.getElementById(id).addEventListener('change', () => {
+            // 当全局行列改变时，只重置那些“跟随全局”的图片线条
+            uploadedImages.forEach(item => { 
+                if(item.localMode === 'global') item.isCustomized = false; 
+            });
+            updatePreview();
+        });
+    });
+
+    // 单图策略变更联动
+    localModeSelect.addEventListener('change', (e) => {
+        const curr = getCurrentImgObj();
+        if (!curr) return;
+        
+        curr.localMode = e.target.value;
+        curr.isCustomized = false; // 切换策略必定重置红线计算
+        
+        localGridSettings.style.display = curr.localMode === 'grid' ? 'flex' : 'none';
+        updatePreview();
+    });
+
+    [localRows, localCols].forEach(input => {
+        input.addEventListener('change', (e) => {
+            const curr = getCurrentImgObj();
+            if (!curr) return;
+            if(e.target.id === 'localRows') curr.localRows = parseInt(e.target.value) || 1;
+            if(e.target.id === 'localCols') curr.localCols = parseInt(e.target.value) || 1;
+            curr.isCustomized = false;
+            updatePreview();
+        });
+    });
+
+    document.querySelectorAll('.tool-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const id = e.target.id;
+            const curr = getCurrentImgObj();
+            
+            if (id === 'toolClear') {
+                if (curr && confirm('确定要清空该图片上的所有分割线吗？')) {
+                    curr.vLines = [];
+                    curr.hLines = [];
+                    curr.isCustomized = true;
+                    drawCanvas(curr);
+                    updatePreviewTextOnly();
+                }
+                return;
+            }
+
+            if (id === 'toolReset') {
+                if (curr) {
+                    curr.isCustomized = false; // 仅仅重置线条，不改变 localMode
+                    updatePreview();
+                }
+                return;
+            }
+
+            document.querySelectorAll('.tool-btn').forEach(b => {
+                if (b.id !== 'toolClear' && b.id !== 'toolReset') b.classList.remove('active');
+            });
+            e.target.classList.add('active');
+            
+            if (id === 'toolMove') currentTool = 'move';
+            if (id === 'toolAddH') currentTool = 'addh';
+            if (id === 'toolAddV') currentTool = 'addv';
+            
+            updateCursorPos(); 
+        });
+    });
+
+    uploadArea.addEventListener('click', () => fileInput.click());
+    uploadArea.addEventListener('dragover', e => { e.preventDefault(); uploadArea.classList.add('dragover'); });
+    uploadArea.addEventListener('dragleave', () => uploadArea.classList.remove('dragover'));
+    uploadArea.addEventListener('drop', e => {
+        e.preventDefault(); uploadArea.classList.remove('dragover');
+        if (e.dataTransfer.files.length) handleFiles(e.dataTransfer.files);
+    });
+    fileInput.addEventListener('change', e => {
+        if (e.target.files.length) handleFiles(e.target.files);
+    });
+
+    function handleFiles(files) {
+        let loadedCount = 0;
+        Array.from(files).forEach(file => {
+            if (!file.type.startsWith('image/')) return;
+            const objUrl = URL.createObjectURL(file);
+            const img = new Image();
+            img.onload = () => {
+                const imgObj = {
+                    id: Date.now() + Math.random(),
+                    name: file.name.replace(/\.[^/.]+$/, ""), 
+                    img: img,
+                    vLines: [], hLines: [],
+                    isCustomized: false,
+                    // 新增：单图策略数据结构
+                    localMode: 'global',
+                    localRows: 3,
+                    localCols: 3
+                };
+                uploadedImages.push(imgObj);
+                addThumbnail(imgObj, objUrl);
+                updateThumbnailHeader();
+                
+                loadedCount++;
+                if (loadedCount === 1 && uploadedImages.length === 1) { 
+                    selectImage(imgObj.id);
+                    splitBtn.disabled = false;
+                } else {
+                    updateNavButtons();
+                }
+            };
+            img.src = objUrl;
+        });
+        fileInput.value = ''; 
+    }
+
+    function addThumbnail(imgObj, src) {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'thumbnail-wrapper';
+        wrapper.dataset.id = imgObj.id;
+        wrapper.onclick = () => selectImage(imgObj.id);
+
+        const imgEl = document.createElement('img');
+        imgEl.src = src; imgEl.className = 'thumbnail-item';
+        imgEl.title = imgObj.name;
+
+        const delBtn = document.createElement('span');
+        delBtn.className = 'thumbnail-delete';
+        delBtn.innerHTML = '×';
+        delBtn.title = '删除此图';
+        delBtn.onclick = (e) => {
+            e.stopPropagation();
+            URL.revokeObjectURL(imgObj.img.src);
+            uploadedImages = uploadedImages.filter(img => img.id !== imgObj.id);
+            wrapper.remove();
+            updateThumbnailHeader();
+            
+            if (currentImgId === imgObj.id) {
+                if (uploadedImages.length > 0) {
+                    selectImage(uploadedImages[0].id);
+                } else {
+                    currentImgId = null;
+                    ctx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
+                    document.getElementById('previewName').textContent = '';
+                    document.getElementById('imageInfo').textContent = '';
+                    splitBtn.disabled = true;
+                    updateNavButtons();
+                }
+            } else {
+                updatePreviewTextOnly();
+                updateNavButtons();
+            }
+        };
+
+        wrapper.appendChild(imgEl);
+        wrapper.appendChild(delBtn);
+        thumbnailList.appendChild(wrapper);
+    }
+
+    function selectImage(id) {
+        currentImgId = id;
+        document.querySelectorAll('.thumbnail-item').forEach(el => {
+            el.classList.toggle('active', el.parentElement.dataset.id == id);
+        });
+        
+        // 切换图片时，同步单图策略UI控件
+        const curr = getCurrentImgObj();
+        if(curr) {
+            localModeSelect.value = curr.localMode;
+            localRows.value = curr.localRows;
+            localCols.value = curr.localCols;
+            localGridSettings.style.display = curr.localMode === 'grid' ? 'flex' : 'none';
+        }
+        
+        updateNavButtons();
+        updatePreview();
+    }
+
+    function getCurrentImgObj() {
+        return uploadedImages.find(img => img.id === currentImgId);
+    }
+
+    function updatePreviewTextOnly() {
+        const curr = getCurrentImgObj();
+        if (curr) {
+            let statusText = curr.isCustomized ? '(已微调红线)' : '(自动计算)';
+            let modeText = curr.localMode === 'global' ? '跟随全局' : '专属单图策略';
+            document.getElementById('imageInfo').textContent = `总图数: ${uploadedImages.length} | 尺寸: ${curr.img.width}x${curr.img.height}px | 策略: ${modeText} | 线条: ${statusText}`;
+        }
+    }
+
+    function getBackgroundColors(imgData, w, h) {
+        const colorMap = new Map();
+        let totalSamples = 0;
+        
+        const addColor = (r, g, b, a) => {
+            if (a < 15) return; 
+            const qR = Math.round(r / 16) * 16;
+            const qG = Math.round(g / 16) * 16;
+            const qB = Math.round(b / 16) * 16;
+            const key = `${qR},${qG},${qB}`;
+            colorMap.set(key, (colorMap.get(key) || 0) + 1);
+        };
+
+        for(let x=0; x<w; x+=2) {
+            let idx1 = x * 4;
+            let idx2 = ((h-1)*w + x) * 4;
+            addColor(imgData[idx1], imgData[idx1+1], imgData[idx1+2], imgData[idx1+3]);
+            addColor(imgData[idx2], imgData[idx2+1], imgData[idx2+2], imgData[idx2+3]);
+            totalSamples += 2;
+        }
+        for(let y=0; y<h; y+=2) {
+            let idx1 = (y*w) * 4;
+            let idx2 = (y*w + w-1) * 4;
+            addColor(imgData[idx1], imgData[idx1+1], imgData[idx1+2], imgData[idx1+3]);
+            addColor(imgData[idx2], imgData[idx2+1], imgData[idx2+2], imgData[idx2+3]);
+            totalSamples += 2;
+        }
+
+        const sortedColors = Array.from(colorMap.entries()).sort((a,b) => b[1] - a[1]);
+        const results = [];
+        for(let i=0; i<Math.min(3, sortedColors.length); i++) {
+            if (sortedColors[i][1] > totalSamples * 0.05) {
+                const parts = sortedColors[i][0].split(',').map(Number);
+                results.push({ r: parts[0], g: parts[1], b: parts[2], a: 255 });
+            }
+        }
+        results.push({r:255, g:255, b:255, a:255});
+        results.push({r:0, g:0, b:0, a:255});
+        return results;
+    }
+
+    // 核心变更：计算线条时读取局部/全局混合配置
+    function calculateLinesForImg(imgObj) {
+        // 判断使用哪个模式
+        const effectiveMode = imgObj.localMode === 'global' ? document.querySelector('input[name="mode"]:checked').value : imgObj.localMode;
+        
+        const img = imgObj.img;
+        let v = [], h = [];
+
+        if (effectiveMode === 'auto_color' || effectiveMode === 'auto_smart') {
+            const res = autoDetectLines(img, effectiveMode);
+            v = res.v; h = res.h;
+        } else if (effectiveMode === 'grid') {
+            const cols = imgObj.localMode === 'global' ? (parseInt(document.getElementById('cols').value) || 1) : imgObj.localCols;
+            const rows = imgObj.localMode === 'global' ? (parseInt(document.getElementById('rows').value) || 1) : imgObj.localRows;
+            
+            for (let i = 1; i < cols; i++) v.push(Math.round(i * (img.width / cols)));
+            for (let i = 1; i < rows; i++) h.push(Math.round(i * (img.height / rows)));
+        }
+        return {v, h};
+    }
+
+    function autoDetectLines(img, mode) {
+        const tempCanvas = document.createElement('canvas');
+        const w = img.width; const h = img.height;
+        tempCanvas.width = w; tempCanvas.height = h;
+        const tCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
+        tCtx.drawImage(img, 0, 0);
+        
+        const imgData = tCtx.getImageData(0, 0, w, h).data;
+        const bgColors = getBackgroundColors(imgData, w, h);
+
+        const isBgColor = (r, g, b, a) => {
+            if (a < 15) return true;
+            for (let bg of bgColors) {
+                if (Math.abs(r - bg.r) + Math.abs(g - bg.g) + Math.abs(b - bg.b) < 30) return true;
+            }
+            return false;
+        };
+
+        const backgroundRows = [], backgroundCols = [];
+        const noiseX = Math.max(1, Math.floor(w * 0.015)); 
+        const noiseY = Math.max(1, Math.floor(h * 0.015));
+
+        const rowDiffs = new Float32Array(h);
+        const colDiffs = new Float32Array(w);
+
+        for (let y = 0; y < h; y++) {
+            let noiseCount = 0; let diffSum = 0; let solidMatchCount = 0;
+            let firstR = imgData[(y * w) * 4], firstG = imgData[(y * w) * 4 + 1], firstB = imgData[(y * w) * 4 + 2];
+
+            for (let x = 0; x < w; x++) { 
+                const idx = (y * w + x) * 4;
+                const r = imgData[idx], g = imgData[idx+1], b = imgData[idx+2], a = imgData[idx+3];
+                
+                if (Math.abs(r - firstR) + Math.abs(g - firstG) + Math.abs(b - firstB) <= 20) solidMatchCount++;
+                if (!isBgColor(r, g, b, a)) noiseCount++;
+                
+                if (y > 0) {
+                    const pIdx = ((y - 1) * w + x) * 4;
+                    diffSum += Math.abs(r - imgData[pIdx]) + Math.abs(g - imgData[pIdx+1]) + Math.abs(b - imgData[pIdx+2]);
+                }
+            }
+            rowDiffs[y] = diffSum / w;
+            if (noiseCount <= noiseX || solidMatchCount >= w - noiseX) backgroundRows.push(y);
+        }
+
+        for (let x = 0; x < w; x++) {
+            let noiseCount = 0; let diffSum = 0; let solidMatchCount = 0;
+            let firstR = imgData[x * 4], firstG = imgData[x * 4 + 1], firstB = imgData[x * 4 + 2];
+
+            for (let y = 0; y < h; y++) { 
+                const idx = (y * w + x) * 4;
+                const r = imgData[idx], g = imgData[idx+1], b = imgData[idx+2], a = imgData[idx+3];
+                
+                if (Math.abs(r - firstR) + Math.abs(g - firstG) + Math.abs(b - firstB) <= 20) solidMatchCount++;
+                if (!isBgColor(r, g, b, a)) noiseCount++;
+                
+                if (x > 0) {
+                    const pIdx = (y * w + (x - 1)) * 4;
+                    diffSum += Math.abs(r - imgData[pIdx]) + Math.abs(g - imgData[pIdx+1]) + Math.abs(b - imgData[pIdx+2]);
+                }
+            }
+            colDiffs[x] = diffSum / h;
+            if (noiseCount <= noiseY || solidMatchCount >= h - noiseY) backgroundCols.push(x);
+        }
+
+        const detectSeams = (diffs, maxVal) => {
+            const seams = [];
+            let sum = 0, sumSq = 0;
+            for(let i=1; i<maxVal; i++) { sum += diffs[i]; sumSq += diffs[i] * diffs[i]; }
+            const mean = sum / maxVal;
+            const stdDev = Math.sqrt(Math.max(0, (sumSq / maxVal) - (mean * mean)));
+            const threshold = Math.max(mean + stdDev * 3.5, 50);
+
+            for(let i=10; i<maxVal-10; i++) {
+                if (diffs[i] > threshold && diffs[i] > diffs[i-1] && diffs[i] > diffs[i+1]) seams.push(i);
+            }
+            return seams;
+        };
+
+        const mergeLines = (lines, maxVal) => {
+            if (lines.length === 0) return [];
+            const segments = [];
+            let currentSegment = [lines[0]];
+
+            for (let i = 1; i < lines.length; i++) {
+                if (lines[i] === lines[i-1] + 1) currentSegment.push(lines[i]);
+                else { segments.push(currentSegment); currentSegment = [lines[i]]; }
+            }
+            segments.push(currentSegment);
+
+            const boundaries = [];
+            for (const seg of segments) {
+                const start = seg[0]; const end = seg[seg.length - 1];
+                if (end - start > 4) { 
+                    if (start > 5) boundaries.push(start);
+                    if (end < maxVal - 5) boundaries.push(end);
+                } else {
+                    const center = Math.floor((start + end) / 2);
+                    if (center > 5 && center < maxVal - 5) boundaries.push(center);
+                }
+            }
+            return boundaries;
+        };
+
+        let hFinal = [], vFinal = [];
+
+        if (mode === 'auto_color') {
+            hFinal = mergeLines(backgroundRows, h);
+            vFinal = mergeLines(backgroundCols, w);
+        } else if (mode === 'auto_smart') {
+            hFinal = detectSeams(rowDiffs, h);
+            vFinal = detectSeams(colDiffs, w);
+        }
+
+        return { h: hFinal, v: vFinal };
+    }
+
+    function updatePreview() {
+        const curr = getCurrentImgObj();
+        if (!curr) return;
+        document.getElementById('previewName').textContent = `(${curr.name})`;
+        
+        if (!curr.isCustomized) {
+            const lines = calculateLinesForImg(curr);
+            curr.vLines = lines.v; curr.hLines = lines.h;
+        }
+        updatePreviewTextOnly();
+        drawCanvas(curr);
+    }
+
+    function drawCanvas(curr) {
+        previewCanvas.width = curr.img.width;
+        previewCanvas.height = curr.img.height;
+        ctx.drawImage(curr.img, 0, 0);
+
+        ctx.strokeStyle = 'rgba(255, 0, 0, 0.9)';
+        ctx.lineWidth = Math.max(2, curr.img.width / 500);
+
+        curr.vLines.forEach(x => { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, curr.img.height); ctx.stroke(); });
+        curr.hLines.forEach(y => { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(curr.img.width, y); ctx.stroke(); });
+    }
+
+    function getMousePos(evt) {
+        const rect = previewCanvas.getBoundingClientRect();
+        return { 
+            x: (evt.clientX - rect.left) * (previewCanvas.width / rect.width), 
+            y: (evt.clientY - rect.top) * (previewCanvas.height / rect.height) 
+        };
+    }
+
+    function updateCursorPos(e) {
+        const curr = getCurrentImgObj();
+        if (!curr) return;
+        
+        if (currentTool === 'addh') { previewCanvas.style.cursor = 'row-resize'; return; }
+        if (currentTool === 'addv') { previewCanvas.style.cursor = 'col-resize'; return; }
+
+        if (e && currentTool === 'move') {
+            const pos = getMousePos(e);
+            const scaleX = previewCanvas.width / previewCanvas.clientWidth;
+            const scaleY = previewCanvas.height / previewCanvas.clientHeight;
+            
+            if (curr.vLines.some(x => Math.abs(pos.x - x) < HIT_TOLERANCE * scaleX)) previewCanvas.style.cursor = 'col-resize';
+            else if (curr.hLines.some(y => Math.abs(pos.y - y) < HIT_TOLERANCE * scaleY)) previewCanvas.style.cursor = 'row-resize';
+            else previewCanvas.style.cursor = 'default';
+        }
+    }
+
+    previewCanvas.addEventListener('mousemove', e => {
+        const curr = getCurrentImgObj();
+        if (!curr) return;
+        const pos = getMousePos(e);
+        
+        if (isDragging && dragTarget && currentTool === 'move') {
+            curr.isCustomized = true; 
+            if (dragTarget.type === 'v') curr.vLines[dragTarget.index] = pos.x;
+            else curr.hLines[dragTarget.index] = pos.y;
+            drawCanvas(curr);
+            return;
+        }
+        updateCursorPos(e);
+    });
+
+    previewCanvas.addEventListener('mousedown', e => {
+        const curr = getCurrentImgObj();
+        if (!curr) return;
+        const pos = getMousePos(e);
+        
+        if (currentTool === 'addh') {
+            curr.hLines.push(Math.round(pos.y));
+            curr.isCustomized = true;
+            updatePreviewTextOnly();
+            drawCanvas(curr);
+            return;
+        }
+        
+        if (currentTool === 'addv') {
+            curr.vLines.push(Math.round(pos.x));
+            curr.isCustomized = true;
+            updatePreviewTextOnly();
+            drawCanvas(curr);
+            return;
+        }
+
+        if (currentTool === 'move') {
+            const scaleX = previewCanvas.width / previewCanvas.clientWidth;
+            const scaleY = previewCanvas.height / previewCanvas.clientHeight;
+            for (let i = 0; i < curr.vLines.length; i++) {
+                if (Math.abs(pos.x - curr.vLines[i]) < HIT_TOLERANCE * scaleX) { isDragging = true; dragTarget = { type: 'v', index: i }; return; }
+            }
+            for (let i = 0; i < curr.hLines.length; i++) {
+                if (Math.abs(pos.y - curr.hLines[i]) < HIT_TOLERANCE * scaleY) { isDragging = true; dragTarget = { type: 'h', index: i }; return; }
+            }
+        }
+    });
+
+    previewCanvas.addEventListener('dblclick', e => {
+        if (currentTool !== 'move') return;
+        const curr = getCurrentImgObj();
+        if (!curr) return;
+        const pos = getMousePos(e);
+        const scaleX = previewCanvas.width / previewCanvas.clientWidth;
+        const scaleY = previewCanvas.height / previewCanvas.clientHeight;
+
+        for (let i = 0; i < curr.vLines.length; i++) {
+            if (Math.abs(pos.x - curr.vLines[i]) < HIT_TOLERANCE * scaleX) {
+                curr.vLines.splice(i, 1);
+                curr.isCustomized = true;
+                drawCanvas(curr);
+                updatePreviewTextOnly();
+                return;
+            }
+        }
+        for (let i = 0; i < curr.hLines.length; i++) {
+            if (Math.abs(pos.y - curr.hLines[i]) < HIT_TOLERANCE * scaleY) {
+                curr.hLines.splice(i, 1);
+                curr.isCustomized = true;
+                drawCanvas(curr);
+                updatePreviewTextOnly();
+                return;
+            }
+        }
+    });
+
+    window.addEventListener('mouseup', () => { 
+        if (isDragging) {
+            const curr = getCurrentImgObj();
+            if (curr) {
+                curr.vLines = curr.vLines.filter(x => x > 5 && x < curr.img.width - 5);
+                curr.hLines = curr.hLines.filter(y => y > 5 && y < curr.img.height - 5);
+                updatePreviewTextOnly();
+                drawCanvas(curr);
+            }
+        }
+        isDragging = false; 
+        dragTarget = null; 
+    });
+
+
+    function filterAndTrimCanvas(canvas, allowShrink) {
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        const w = canvas.width, h = canvas.height;
+        const imgData = ctx.getImageData(0, 0, w, h).data;
+        
+        const bgColors = getBackgroundColors(imgData, w, h);
+        
+        const isBgPixel = (r, g, b, a) => {
+            if (a < 25) return true;
+            for (let bg of bgColors) {
+                if (Math.abs(r - bg.r) + Math.abs(g - bg.g) + Math.abs(b - bg.b) < 40) return true;
+            }
+            return false;
+        };
+
+        let bgPixelCount = 0;
+        let rSum = 0, gSum = 0, bSum = 0, validPixels = 0;
+
+        for (let i = 0; i < imgData.length; i += 4) {
+            const r = imgData[i], g = imgData[i+1], b = imgData[i+2], a = imgData[i+3];
+            if (isBgPixel(r, g, b, a)) {
+                bgPixelCount++;
+            } else if (a >= 25) {
+                rSum += r; gSum += g; bSum += b;
+                validPixels++;
+            }
+        }
+
+        const totalPixels = w * h;
+        if (bgPixelCount / totalPixels > 0.95) return null;
+
+        if (validPixels > 0) {
+            const avgR = rSum / validPixels;
+            const avgG = gSum / validPixels;
+            const avgB = bSum / validPixels;
+            let similarColorCount = 0;
+            
+            for (let i = 0; i < imgData.length; i += 4) {
+                if (imgData[i+3] < 25) continue;
+                const r = imgData[i], g = imgData[i+1], b = imgData[i+2];
+                if (Math.abs(r - avgR) + Math.abs(g - avgG) + Math.abs(b - avgB) < 40) {
+                    similarColorCount++;
+                }
+            }
+            if (similarColorCount / validPixels > 0.95) return null; 
+        }
+
+        if (!allowShrink) {
+            return canvas;
+        }
+
+        const isRowBgOrSolid = (y) => {
+            let bgCount = 0; let solidMatchCount = 0;
+            let firstR = imgData[(y * w) * 4], firstG = imgData[(y * w) * 4 + 1], firstB = imgData[(y * w) * 4 + 2];
+            let hasValidFirst = imgData[(y * w) * 4 + 3] >= 25;
+
+            for (let x = 0; x < w; x++) {
+                const idx = (y * w + x) * 4;
+                const r = imgData[idx], g = imgData[idx+1], b = imgData[idx+2], a = imgData[idx+3];
+                if (isBgPixel(r, g, b, a)) bgCount++;
+                if (hasValidFirst && a >= 25 && Math.abs(r - firstR) + Math.abs(g - firstG) + Math.abs(b - firstB) <= 25) {
+                    solidMatchCount++;
+                }
+            }
+            const threshold = Math.max(1, Math.floor(w * 0.96));
+            return bgCount >= threshold || solidMatchCount >= threshold;
+        };
+
+        const isColBgOrSolid = (x) => {
+            let bgCount = 0; let solidMatchCount = 0;
+            let firstR = imgData[x * 4], firstG = imgData[x * 4 + 1], firstB = imgData[x * 4 + 2];
+            let hasValidFirst = imgData[x * 4 + 3] >= 25;
+
+            for (let y = 0; y < h; y++) {
+                const idx = (y * w + x) * 4;
+                const r = imgData[idx], g = imgData[idx+1], b = imgData[idx+2], a = imgData[idx+3];
+                if (isBgPixel(r, g, b, a)) bgCount++;
+                if (hasValidFirst && a >= 25 && Math.abs(r - firstR) + Math.abs(g - firstG) + Math.abs(b - firstB) <= 25) {
+                    solidMatchCount++;
+                }
+            }
+            const threshold = Math.max(1, Math.floor(h * 0.96));
+            return bgCount >= threshold || solidMatchCount >= threshold;
+        };
+
+        let top = 0, bottom = h - 1, left = 0, right = w - 1;
+        while (top <= bottom && isRowBgOrSolid(top)) top++;
+        while (bottom >= top && isRowBgOrSolid(bottom)) bottom--;
+        while (left <= right && isColBgOrSolid(left)) left++;
+        while (right >= left && isColBgOrSolid(right)) right--;
+
+        if (top > bottom || left > right) return null;
+
+        const SHRINK = 1;
+        if (right - left > SHRINK * 2 && bottom - top > SHRINK * 2) {
+            left += SHRINK; right -= SHRINK;
+            top += SHRINK; bottom -= SHRINK;
+        }
+
+        const trimW = right - left + 1, trimH = bottom - top + 1;
+        if (trimW < 5 || trimH < 5) return null;
+
+        const res = document.createElement('canvas');
+        res.width = trimW; res.height = trimH;
+        res.getContext('2d').drawImage(canvas, left, top, trimW, trimH, 0, 0, trimW, trimH);
+        return res;
+    }
+
+    document.getElementById('clearResultsBtn').addEventListener('click', () => {
+        if (!confirm('确定要清空下方所有的生成结果吗？')) return;
+        splitResults.forEach(r => URL.revokeObjectURL(r.dataUrl));
+        document.getElementById('resultsContainer').innerHTML = '';
+        splitResults = [];
+        document.getElementById('resultCount').textContent = '0';
+        document.getElementById('resultsSection').style.display = 'none';
+    });
+
+    document.getElementById('clearNarrowBtn').addEventListener('click', () => {
+        if (splitResults.length === 0) return;
+        
+        const thresholdRatio = 5; 
+        const toKeep = [];
+        const toRemove = [];
+        
+        splitResults.forEach(item => {
+            const ratio = Math.max(item.width / item.height, item.height / item.width);
+            const isTooSmall = item.width < 15 || item.height < 15;
+            
+            if (ratio > thresholdRatio || isTooSmall) {
+                toRemove.push(item);
+            } else {
+                toKeep.push(item);
+            }
+        });
+        
+        if (toRemove.length === 0) {
+            alert('检测完毕：当前没有发现狭窄或无效边框图。');
+            return;
+        }
+        
+        if (!confirm(`智能识别出 ${toRemove.length} 张疑似边框的狭长废图，确定要一键清除它们吗？`)) return;
+        
+        toRemove.forEach(item => {
+            URL.revokeObjectURL(item.dataUrl); 
+            const domItem = document.querySelector(`.result-item[data-id="${item.id}"]`);
+            if (domItem) domItem.remove(); 
+        });
+        
+        splitResults = toKeep;
+        document.getElementById('resultCount').textContent = splitResults.length;
+        
+        if (splitResults.length === 0) {
+            document.getElementById('resultsSection').style.display = 'none';
+        }
+    });
+
+    splitBtn.addEventListener('click', async () => {
+        if (uploadedImages.length === 0) return;
+
+        splitBtn.textContent = '处理中, 请稍候...';
+        splitBtn.disabled = true;
+        document.getElementById('resultsSection').style.display = 'block';
+
+        const userWantsTrim = document.getElementById('trimWhiteEdges').checked;
+
+        await new Promise(resolve => requestAnimationFrame(resolve));
+
+        const tempCanvas = document.createElement('canvas');
+        const tCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
+        
+        let addedCount = 0;
+        let processedImages = 0;
+
+        for (const imgObj of uploadedImages) {
+            processedImages++;
+            splitBtn.textContent = `提取中 (${processedImages}/${uploadedImages.length})...`;
+            
+            if (!imgObj.isCustomized) {
+                const lines = calculateLinesForImg(imgObj);
+                imgObj.vLines = lines.v; imgObj.hLines = lines.h;
+            }
+
+            const xPoints = [0, ...imgObj.vLines, imgObj.img.width].sort((a,b)=>a-b);
+            const yPoints = [0, ...imgObj.hLines, imgObj.img.height].sort((a,b)=>a-b);
+
+            let partIndex = 1;
+            for (let y = 0; y < yPoints.length - 1; y++) {
+                for (let x = 0; x < xPoints.length - 1; x++) {
+                    const startX = Math.max(0, xPoints[x]), startY = Math.max(0, yPoints[y]);
+                    const currentW = Math.min(imgObj.img.width - startX, xPoints[x+1] - startX);
+                    const currentH = Math.min(imgObj.img.height - startY, yPoints[y+1] - startY);
+
+                    if (currentW < 5 || currentH < 5) continue;
+
+                    tempCanvas.width = currentW; tempCanvas.height = currentH;
+                    tCtx.clearRect(0, 0, currentW, currentH);
+                    tCtx.drawImage(imgObj.img, startX, startY, currentW, currentH, 0, 0, currentW, currentH);
+
+                    let finalCanvas = filterAndTrimCanvas(tempCanvas, userWantsTrim);
+                    
+                    if (!finalCanvas) continue; 
+
+                    const blob = await new Promise(resolve => finalCanvas.toBlob(resolve, 'image/png'));
+                    const objUrl = URL.createObjectURL(blob);
+                    
+                    const fileName = `${imgObj.name}_大图_${partIndex}.png`;
+                    const resultId = 'res_' + Date.now() + '_' + Math.floor(Math.random()*1000);
+                    
+                    splitResults.push({ 
+                        id: resultId, 
+                        name: fileName, 
+                        dataUrl: objUrl,
+                        width: finalCanvas.width,
+                        height: finalCanvas.height
+                    });
+
+                    const item = document.createElement('div');
+                    item.className = 'result-item';
+                    item.dataset.id = resultId;
+                    item.innerHTML = `
+                        <span class="result-delete" title="删除此图">×</span>
+                        <img src="${objUrl}" alt="part" loading="lazy">
+                        <div class="result-info">
+                            <p title="${fileName}">${fileName}</p>
+                            <span class="resolution">${finalCanvas.width} × ${finalCanvas.height} px</span>
+                            <a href="${objUrl}" download="${fileName}" class="single-download">下载</a>
+                        </div>
+                    `;
+
+                    item.querySelector('.result-delete').addEventListener('click', function(e) {
+                        e.stopPropagation();
+                        item.remove();
+                        const deletedItem = splitResults.find(r => r.id === resultId);
+                        if (deletedItem) URL.revokeObjectURL(deletedItem.dataUrl);
+                        splitResults = splitResults.filter(r => r.id !== resultId);
+                        
+                        document.getElementById('resultCount').textContent = splitResults.length;
+                        if (splitResults.length === 0) {
+                            document.getElementById('resultsSection').style.display = 'none';
+                        }
+                    });
+
+                    document.getElementById('resultsContainer').appendChild(item);
+                    addedCount++;
+                    partIndex++;
+                    
+                    if (partIndex % 5 === 0) await new Promise(resolve => setTimeout(resolve, 0));
+                }
+            }
+        }
+        
+        document.getElementById('resultCount').textContent = splitResults.length;
+        splitBtn.textContent = '开始批量处理提取';
+        splitBtn.disabled = false;
+        
+        if(addedCount > 0) {
+            document.getElementById('resultsSection').scrollIntoView({ behavior: 'smooth' });
+        } else {
+            alert('没有提取到有效图块（可能全是被过滤的空白/纯色图）。');
+            document.getElementById('resultsSection').style.display = 'none';
+        }
+    });
+
+    const modal = document.getElementById('previewModal');
+    const modalImg = document.getElementById('modalImage');
+    const modalCounter = document.getElementById('modalCounter');
+
+    function openModalWithIndex(index) {
+        if(splitResults.length === 0 || index < 0 || index >= splitResults.length) return;
+        currentModalIndex = index;
+        modalImg.src = splitResults[currentModalIndex].dataUrl;
+        modalCounter.textContent = `${currentModalIndex + 1} / ${splitResults.length}`;
+        modal.style.display = "block";
+    }
+
+    function showPrevImage() {
+        if (currentModalIndex <= 0) openModalWithIndex(splitResults.length - 1);
+        else openModalWithIndex(currentModalIndex - 1);
+    }
+
+    function showNextImage() {
+        if (currentModalIndex >= splitResults.length - 1) openModalWithIndex(0);
+        else openModalWithIndex(currentModalIndex + 1);
+    }
+
+    document.getElementById('resultsContainer').addEventListener('dblclick', function(e) {
+        let target = e.target.closest('.result-item');
+        if (target) {
+            const resultId = target.dataset.id;
+            const index = splitResults.findIndex(r => r.id === resultId);
+            if(index !== -1) openModalWithIndex(index);
+        }
+    });
+
+    document.getElementById('modalPrev').addEventListener('click', (e) => {
+        e.stopPropagation();
+        showPrevImage();
+    });
+
+    document.getElementById('modalNext').addEventListener('click', (e) => {
+        e.stopPropagation();
+        showNextImage();
+    });
+
+    modal.addEventListener('click', function(e) {
+        if (e.target === modal || e.target === document.getElementById('modalClose')) {
+            modal.style.display = "none";
+        }
+    });
+
+    window.addEventListener('keydown', e => {
+        if (modal.style.display === 'block') {
+            if (e.key === 'ArrowLeft') showPrevImage();
+            else if (e.key === 'ArrowRight') showNextImage();
+            else if (e.key === 'Escape') modal.style.display = 'none';
+        }
+    });
+
+    modal.addEventListener('wheel', e => {
+        if (modal.style.display === 'block') {
+            e.preventDefault(); 
+            if (e.deltaY > 0) showNextImage();
+            else showPrevImage();
+        }
+    }, { passive: false });
+
+    document.getElementById('downloadAllBtn').addEventListener('click', () => {
+        if (splitResults.length === 0) return;
+        if (splitResults.length > 3) alert('即将开始批量下载。\n\n⚠️ 如果浏览器拦截提示"允许下载多个文件"，请点击"允许"。');
+        
+        splitResults.forEach((file, index) => {
+            setTimeout(() => {
+                const link = document.createElement('a');
+                link.href = file.dataUrl; 
+                link.download = file.name;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }, index * 200);
+        });
+    });
+</script>
+
+</body>
+</html>
